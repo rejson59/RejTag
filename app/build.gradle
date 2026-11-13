@@ -1,0 +1,29 @@
+plugins { id 'com.android.application' }
+
+def local = new Properties()
+def localFile = rootProject.file('local.properties')
+if (localFile.exists()) localFile.withInputStream { local.load(it) }
+// Only public client settings go in this file; secrets never belong in an APK.
+def publicConfig = new Properties()
+def publicFile = rootProject.file('supabase-public.properties')
+if (publicFile.exists()) publicFile.withInputStream { publicConfig.load(it) }
+def configValue = { key -> groovy.json.JsonOutput.toJson(local.getProperty(key) ?: System.getenv(key) ?: publicConfig.getProperty(key) ?: '') }
+
+android {
+    namespace 'pl.rejtag.app'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'pl.rejtag.app'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '0.2.0'
+        buildConfigField 'String', 'SUPABASE_URL', configValue('SUPABASE_URL')
+        buildConfigField 'String', 'SUPABASE_ANON_KEY', configValue('SUPABASE_ANON_KEY')
+    }
+    buildFeatures { buildConfig true }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

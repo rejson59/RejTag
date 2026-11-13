@@ -1,0 +1,70 @@
+// A local simulation of the RejHub session contract; does not access real accounts.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
+const root = process.env.PGLITE_MODULE || '/tmp/rejtag-test/node_modules/@electric-sql/pglite/dist';
+const { PGlite } = await import(pathToFileURL(root + '/index.js'));
+const db = new PGlite();
+await db.exec(`create role anon; create role authenticated; create schema auth;
+create table auth.users(id uuid primary key);
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+create table public.community_users(id uuid primary key, username text not null);
+create table public.community_sessions(token_hash text primary key, user_id uuid not null references public.community_users(id));
+create function public.community_session_user(p_token text) returns table(user_id uuid, username text)
+language plpgsql security definer as $$ begin
+ return query select u.id, u.username from public.community_sessions s join public.community_users u on s.user_id=u.id where s.token_hash=encode(sha256(convert_to('rejson_comm_sess_v1:' || trim(p_token),'UTF8')),'hex');
+ if not found then raise exception 'invalid session'; end if;
+end $$;
+insert into public.community_users values
+ ('00000000-0000-4000-8000-000000000001','alice'),('00000000-0000-4000-8000-000000000002','bob'),('00000000-0000-4000-8000-000000000003','chris');
+insert into public.community_sessions select encode(sha256(convert_to('rejson_comm_sess_v1:' || t.token,'UTF8')),'hex'), t.id::uuid from (values ('alice-test-session','00000000-0000-4000-8000-000000000001'),('bob-test-session','00000000-0000-4000-8000-000000000002'),('chris-test-session','00000000-0000-4000-8000-000000000003'),('alice-other-session','00000000-0000-4000-8000-000000000001')) t(token,id);`);
+await db.exec(fs.readFileSync('supabase/migrations/20261113224431_rejtag_live_prototype.sql', 'utf8'));
+await db.exec(fs.readFileSync('supabase/migrations/20261113224942_rejtag_rejhub_accounts.sql', 'utf8'));
+const a='00000000-0000-4000-8000-000000000001', b='00000000-0000-4000-8000-000000000002';
+await db.exec('set role anon');
+await assert.rejects(db.query('select * from rejtag_private.positions'));
+await assert.rejects(db.query('select public.rejtag_invite()'));
+await assert.rejects(db.query('select public.rejtag_v2_invite($1)', ['forged-session']));
+await assert.rejects(db.query('select public.rejtag_v2_invite($1)', [null]));
+await assert.rejects(db.query('select public.rejtag_v2_publish($1,50,19,5,now())', ['alice-test-session']));
+const invite=(await db.query('select public.rejtag_v2_invite($1) as token',['alice-test-session'])).rows[0].token;
+await assert.rejects(db.query('select public.rejtag_v2_accept_invite($1,$2)', ['alice-test-session',invite]));
+await db.query('select public.rejtag_v2_accept_invite($1,$2)', ['bob-test-session',invite]);
+await assert.rejects(db.query('select public.rejtag_v2_accept_invite($1,$2)', ['chris-test-session',invite]));
+let friends=(await db.query('select * from public.rejtag_v2_friends($1)', ['alice-test-session'])).rows;
+assert.equal(friends[0].username,'bob'); assert.equal(friends[0].sharing_with_friend,false);
+assert.equal((await db.query('select * from public.rejtag_v2_read_position($1,$2)', ['bob-test-session',a])).rows.length,0);
+await db.query('select public.rejtag_v2_set_sharing($1,$2,true)', ['alice-test-session',b]);
+await db.query('select public.rejtag_v2_publish($1,50,19,5,now())',['alice-test-session']);
+assert.equal((await db.query('select * from public.rejtag_v2_read_position($1,$2)', ['bob-test-session',a])).rows.length,1);
+assert.equal((await db.query('select * from public.rejtag_v2_read_position($1,$2)', ['chris-test-session',a])).rows.length,0);
+await db.query('select public.rejtag_v2_set_sharing($1,$2,false)', ['alice-test-session',b]);
+assert.equal((await db.query('select * from public.rejtag_v2_read_position($1,$2)', ['bob-test-session',a])).rows.length,0);
+await db.query('select public.rejtag_v2_set_sharing($1,$2,true)', ['alice-test-session',b]);
+assert.equal((await db.query('select * from public.rejtag_v2_read_position($1,$2)', ['bob-test-session',a])).rows.length,0);
+await db.query('select public.rejtag_v2_publish($1,50,19,5,now())',['alice-test-session']);
+await db.query('select public.rejtag_v2_logout($1)', ['alice-test-session']);
+await assert.rejects(db.query('select * from public.rejtag_v2_friends($1)', ['alice-test-session']));
+assert.equal((await db.query('select * from public.rejtag_v2_friends($1)', ['alice-other-session'])).rows.length, 1, 'other RejHub sessions remain active');
+assert.equal((await db.query('select * from public.rejtag_v2_read_position($1,$2)', ['bob-test-session',a])).rows.length,0,'logout disables location');
+await db.exec("reset role; delete from public.community_sessions where token_hash = encode(sha256(convert_to('rejson_comm_sess_v1:bob-test-session','UTF8')),'hex'); set role anon;");
+await assert.rejects(db.query('select * from public.rejtag_v2_friends($1)', ['bob-test-session']));
+console.log('RejHub session validation, friend names, consent, revocation and invalid session checks passed');
+await db.close();
+
+// A nonempty legacy install must fail atomically rather than silently reassigning users' data.
+const guardDb = new PGlite();
+await guardDb.exec(`create role anon; create role authenticated; create schema auth;
+create table auth.users(id uuid primary key);
+create function auth.uid() returns uuid language sql as $$ select null::uuid $$;
+create table public.community_users(id uuid primary key, username text);
+create function public.community_session_user(text) returns table(user_id uuid, username text) language sql as $$ select null::uuid, null::text where false $$;
+insert into auth.users values ('00000000-0000-4000-8000-000000000001');`);
+await guardDb.exec(fs.readFileSync('supabase/migrations/20261113224431_rejtag_live_prototype.sql', 'utf8'));
+await guardDb.exec("insert into rejtag_private.invites(token_hash,owner_id) values (decode('aa','hex'),'00000000-0000-4000-8000-000000000001')");
+await assert.rejects(guardDb.exec('begin;\n' + fs.readFileSync('supabase/migrations/20261113224942_rejtag_rejhub_accounts.sql', 'utf8') + '\ncommit;'));
+await guardDb.exec('rollback;');
+assert.equal((await guardDb.query('select count(*)::int as n from rejtag_private.invites')).rows[0].n, 1);
+assert.equal((await guardDb.query("select has_function_privilege('authenticated', 'public.rejtag_invite()', 'execute') as allowed")).rows[0].allowed, true);
+console.log('Nonempty legacy data: migration refused without data loss');
+await guardDb.close();
