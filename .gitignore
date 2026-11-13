@@ -3,3 +3,7 @@
 local.properties
 **/build/
 *.iml
+
+# Generated APKs are deliverables, not source files.
+/downloads/
+*.apk
