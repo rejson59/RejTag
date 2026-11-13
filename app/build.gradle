@@ -11,7 +11,7 @@ def configValue = { key -> groovy.json.JsonOutput.toJson(local.getProperty(key) 
 
 android {
     namespace 'pl.rejtag.app'
-    compileSdk 35
+    compileSdk 36
     defaultConfig {
         applicationId 'pl.rejtag.app'
         minSdk 26

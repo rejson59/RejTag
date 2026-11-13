@@ -16,7 +16,7 @@ Dostępność i dokładność GPS, kompasu i kamery zależą od telefonu oraz ot
 
 ## Budowanie APK
 
-Wymagane: JDK 17, Android SDK z platformą 35, dostęp do repozytoriów Google i Gradle. W Android Studio otwórz katalog projektu i zsynchronizuj Gradle lub uruchom:
+Wymagane: JDK 17, Android SDK z platformą 36, dostęp do repozytoriów Google i Gradle. W Android Studio otwórz katalog projektu i zsynchronizuj Gradle lub uruchom:
 
 ```sh
 ./gradlew assembleDebug
