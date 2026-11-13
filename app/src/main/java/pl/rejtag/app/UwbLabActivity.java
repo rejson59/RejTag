@@ -99,7 +99,7 @@ public final class UwbLabActivity extends Activity {
     }
     @Override protected void onResume() { super.onResume(); visible = true; }
     @Override protected void onPause() { visible = false; resetExperiment("Sesja zakończona po opuszczeniu ekranu. Wybierz rolę ponownie."); super.onPause(); }
-    @Override protected void onDestroy() { if (manager != null) { try { manager.close(); } catch (Exception ignored) { } manager = null; } super.onDestroy(); }
+    @Override protected void onDestroy() { manager = null; super.onDestroy(); }
     private int dp(int n) { return Math.round(getResources().getDisplayMetrics().density*n); }
     private TextView text(String s, int size, boolean bold) { TextView t = new TextView(this); t.setText(s); t.setTextSize(size); t.setTextColor(INK); if (bold) t.setTypeface(null, Typeface.BOLD); return t; }
     private GradientDrawable bg(int color) { GradientDrawable d = new GradientDrawable(); d.setColor(color); d.setCornerRadius(dp(16)); return d; }
