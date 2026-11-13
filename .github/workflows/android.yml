@@ -36,7 +36,7 @@ jobs:
           ./gradlew assembleDebug --stacktrace > "$RUNNER_TEMP/gradle.log" 2>&1
           result=$?
           if [ "$result" -ne 0 ]; then
-            grep -E '(^| )error:|^\* What went wrong:|^> |^FAILURE:|^Execution failed' "$RUNNER_TEMP/gradle.log" | head -20 | while IFS= read -r line; do echo "::error::$line"; done
+            sed -n '/^\* What went wrong:/,/^\* Try:/p' "$RUNNER_TEMP/gradle.log" | head -9 | while IFS= read -r line; do echo "::error::$line"; done
             tail -30 "$RUNNER_TEMP/gradle.log"
           fi
           exit "$result"
