@@ -421,7 +421,7 @@ public class MainActivity extends Activity implements SensorEventListener, Locat
         add(page, button("Otwórz pozycję na mapie  ↗", false, this::openMap), 8);
         add(page, button("Pokaż współrzędne", false, this::showCoordinates), 8);
         add(page, button("Możliwości telefonu  +", false, this::showCapabilities), 8);
-        add(page, button("Laboratorium UWB  ↗", false, () -> startActivity(new Intent(this, UwbLabActivity.class))), 8);
+        add(page, button("Laboratorium UWB  ↗", false, this::openUwbLab), 8);
         TextView foot = text("WERSJA EKSPERYMENTALNA  ·  GPS + KOMPAS", 10, MUTED, true); foot.setLetterSpacing(.08f); foot.setGravity(Gravity.CENTER); add(page, foot, 25);
         updateLabels();
     }
@@ -508,6 +508,13 @@ public class MainActivity extends Activity implements SensorEventListener, Locat
     private void openAppSettings() {
         try { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); }
         catch (android.content.ActivityNotFoundException e) { toast("Otwórz ustawienia aplikacji RejTag w telefonie."); }
+    }
+    private void openUwbLab() {
+        if (android.os.Build.VERSION.SDK_INT < 34) {
+            new AlertDialog.Builder(this).setTitle("Laboratorium UWB").setMessage("Ten eksperyment wymaga Androida 14 lub nowszego. Na tym urządzeniu nadal możesz używać wizjera GPS i kompasu.").setPositiveButton("OK", null).show();
+            return;
+        }
+        startActivity(new Intent().setClassName(getPackageName(), getPackageName() + ".UwbLabActivity"));
     }
     private void showCapabilities() {
         PackageManager pm = getPackageManager();
