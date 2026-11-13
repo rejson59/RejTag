@@ -421,6 +421,7 @@ public class MainActivity extends Activity implements SensorEventListener, Locat
         add(page, button("Otwórz pozycję na mapie  ↗", false, this::openMap), 8);
         add(page, button("Pokaż współrzędne", false, this::showCoordinates), 8);
         add(page, button("Możliwości telefonu  +", false, this::showCapabilities), 8);
+        add(page, button("Laboratorium UWB  ↗", false, () -> startActivity(new Intent(this, UwbLabActivity.class))), 8);
         TextView foot = text("WERSJA EKSPERYMENTALNA  ·  GPS + KOMPAS", 10, MUTED, true); foot.setLetterSpacing(.08f); foot.setGravity(Gravity.CENTER); add(page, foot, 25);
         updateLabels();
     }
@@ -516,7 +517,7 @@ public class MainActivity extends Activity implements SensorEventListener, Locat
         String message = "Kamera: " + (cameraAvailable ? "wykryta" : "brak — wizjer działa bez obrazu")
             + "\nKompas: " + (compass ? "czujniki wykryte; jakość zależy od kalibracji" : "brak — dostępna mapa i odległość")
             + "\nLokalizacja: " + (hasLocation() ? (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ? "dostęp dokładny" : "tylko przybliżony") : "brak uprawnienia")
-            + "\nUWB: " + (uwb ? "telefon deklaruje sprzęt" : "nie wykryto sprzętu") + " — pomiar UWB nie jest jeszcze zaimplementowany"
+            + "\nUWB: " + (uwb ? "telefon deklaruje sprzęt" : "nie wykryto sprzętu") + " — dostępny eksperymentalny test dwóch telefonów w Laboratorium UWB"
             + "\nBluetooth LE: " + (pm.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) ? "wykryty" : "brak") + " — pomiar niezaimplementowany"
             + "\nWi-Fi: " + (pm.hasSystemFeature(PackageManager.FEATURE_WIFI) ? "wykryte" : "brak") + " — pomiar niezaimplementowany"
             + "\n\nW tej wersji lokalizacja znajomego to ręcznie przesłana migawka, nie połączenie na żywo.";
