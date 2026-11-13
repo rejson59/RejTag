@@ -40,6 +40,15 @@ jobs:
             tail -30 "$RUNNER_TEMP/gradle.log"
           fi
           exit "$result"
+      - name: Make APK available to the workspace
+        shell: bash
+        run: |
+          base64 -w 0 app/build/outputs/apk/debug/app-debug.apk > "$RUNNER_TEMP/apk.b64"
+          split -b 12000 -d -a 3 "$RUNNER_TEMP/apk.b64" "$RUNNER_TEMP/apk-part-"
+          for part in "$RUNNER_TEMP"/apk-part-*; do
+            echo "::notice title=RejTag APK $(basename "$part")::$(cat "$part")"
+          done
+          echo "::notice title=RejTag APK sha256::$(sha256sum app/build/outputs/apk/debug/app-debug.apk | cut -d' ' -f1)"
       - uses: actions/upload-artifact@v4
         with:
           name: RejTag-debug-apk
