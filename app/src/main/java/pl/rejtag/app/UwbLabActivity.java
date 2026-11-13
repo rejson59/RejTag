@@ -93,7 +93,12 @@ public final class UwbLabActivity extends Activity {
         TextView warning = text("Kod sesji zawiera klucz. Przepisuj go osobiście i nie wysyłaj publicznie. Kod i pomiar nie są zapisywane ani wysyłane na serwer. Wyjście z ekranu zatrzymuje sesję. To nie jest jeszcze śledzenie AR ani pomiar przez ścianę.", 12, false); warning.setTextColor(MUTED); warning.setLineSpacing(dp(3),1); add(page,warning,14);
         updateButtons();
     }
-    @Override protected void onResume() { super.onResume(); visible = true; }
+    @Override protected void onResume() {
+        super.onResume(); visible = true;
+        if (requestedRole != null && Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.UWB_RANGING) == PackageManager.PERMISSION_GRANTED) {
+            Role selected = requestedRole; requestedRole = null; prepare(selected);
+        }
+    }
     @Override protected void onPause() { visible = false; resetExperiment("Sesja zakończona po opuszczeniu ekranu. Wybierz rolę ponownie."); super.onPause(); }
     @Override protected void onDestroy() { manager = null; super.onDestroy(); }
     private int dp(int n) { return Math.round(getResources().getDisplayMetrics().density*n); }
@@ -120,9 +125,9 @@ public final class UwbLabActivity extends Activity {
     @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(request, permissions, results);
         if (request != REQUEST_UWB) return;
-        Role selected = requestedRole; requestedRole = null;
-        if (selected != null && checkSelfPermission(Manifest.permission.UWB_RANGING) == PackageManager.PERMISSION_GRANTED) prepare(selected);
-        else status.setText("Brak zgody na UWB. Nadal możesz użyć wizjera GPS i kompasu.");
+        if (requestedRole != null && checkSelfPermission(Manifest.permission.UWB_RANGING) == PackageManager.PERMISSION_GRANTED) {
+            if (visible) { Role selected = requestedRole; requestedRole = null; prepare(selected); }
+        } else { requestedRole = null; status.setText("Brak zgody na UWB. Nadal możesz użyć wizjera GPS i kompasu."); }
     }
     private void prepare(Role selected) {
         if (!visible) { status.setText("Wróć do ekranu i wybierz rolę ponownie."); return; }
@@ -166,7 +171,10 @@ public final class UwbLabActivity extends Activity {
     }
     private void inputCode() {
         if (scope == null || started) return;
-        EditText input = new EditText(this); input.setSingleLine(false); input.setHint(role == Role.CONTROLLER ? "RTUWB1:P:…" : "RTUWB1:C:…");
+        EditText input = new EditText(this); input.setSingleLine(false);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
+        input.setHint(role == Role.CONTROLLER ? "RTUWB1:P:…" : "RTUWB1:C:…");
         new AlertDialog.Builder(this).setTitle("Kod drugiego telefonu").setMessage("Przepisz kod z ekranu drugiego telefonu. Nie używaj publicznego czatu.").setView(input).setNegativeButton("Anuluj",null).setPositiveButton("Dalej", (d,w) -> acceptCode(input.getText().toString().trim())).show();
     }
     private void acceptCode(String raw) {
@@ -215,7 +223,7 @@ public final class UwbLabActivity extends Activity {
             if (sampleAge >= 0 && sampleAge < 3_000_000_000L && pos.getDistance() != null && Float.isFinite(pos.getDistance().getValue()) && pos.getDistance().getValue() >= 0) {
                 lastMeasurement = SystemClock.elapsedRealtime();
                 String value = String.format(Locale.getDefault(), "%.2f m", pos.getDistance().getValue());
-                if (pos.getAzimuth() != null && Float.isFinite(pos.getAzimuth().getValue())) value += String.format(Locale.getDefault(), "\nKąt poziomy: %.0f°", pos.getAzimuth().getValue());
+                if (pos.getAzimuth() != null && Float.isFinite(pos.getAzimuth().getValue())) value += String.format(Locale.getDefault(), "\nKąt względem anteny: %.0f°", pos.getAzimuth().getValue());
                 measurement.setText(value); status.setText("Pomiar UWB · wartości zależą od warunków i telefonu.");
             }
         } else if (result instanceof RangingResult.RangingResultPeerDisconnected) resetExperiment("Utracono drugi telefon. Przygotuj nowe kody albo użyj GPS.");
