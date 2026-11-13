@@ -33,7 +33,7 @@ jobs:
               exit 1
             fi
           fi
-          ./gradlew assembleDebug --stacktrace > "$RUNNER_TEMP/gradle.log" 2>&1
+          ./gradlew assembleDebug testDebugUnitTest --stacktrace > "$RUNNER_TEMP/gradle.log" 2>&1
           result=$?
           if [ "$result" -ne 0 ]; then
             sed -n '/^\* What went wrong:/,/^\* Try:/p' "$RUNNER_TEMP/gradle.log" | head -9 | while IFS= read -r line; do echo "::error::$line"; done

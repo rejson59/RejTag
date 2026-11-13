@@ -9,7 +9,8 @@ RejTag to eksperyment z odnajdywaniem znajomych w przestrzeni. Ten projekt jest 
 - Wizjer wyświetla obraz tylnej kamery (lub działa bez obrazu, gdy kamera jest niedostępna) oraz orientacyjny kierunek i odległość w linii prostej obliczone z lokalizacji i kompasu. To **nie jest przestrzenny znacznik AR ani pomiar telefonu przez ścianę**. Kompas należy skalibrować, a ekran ostrzega, gdy dane nie wystarczają do wyznaczenia kierunku.
 - Aplikacja sprawdza możliwości telefonu. Kierunek pochodzi z wektora rotacji lub, jeśli go nie ma lub jest niewiarygodny, z akcelerometru i magnetometru. Bez kompasu nadal wyświetla przybliżoną odległość, jeśli obie lokalizacje są dostępne i aktualne. Niedokładny lub nieaktualny pomiar nie jest przedstawiany jako pewny kierunek.
 - W razie braku kamery/kompasu można otworzyć pozycję znajomego w zewnętrznej aplikacji mapowej (dopiero po potwierdzeniu przekazania jej współrzędnych) albo wyświetlić i skopiować współrzędne. Mapa jest dodatkową aplikacją i nie musi być zainstalowana. Same współrzędne są dostępne bez niej. Pozycja musi być aktualna.
-- Ekran „Możliwości telefonu” pokazuje wykryty sprzęt i stan uprawnień. Wykrycie UWB, Bluetooth i Wi-Fi nie oznacza, że pomiar z nich działa — w tym prototypie nie jest jeszcze zaimplementowany.
+- Ekran „Możliwości telefonu” pokazuje wykryty sprzęt i stan uprawnień. Wykrycie sprzętu nie gwarantuje dostępności pomiaru. Bluetooth i Wi-Fi nie są jeszcze wykorzystywane do pomiaru.
+- „Laboratorium UWB” to osobny, eksperymentalny pomiar odległości na dwóch telefonach Android 14+ z odpowiednim UWB. Parowanie wymaga ręcznego przepisania kodów; oba telefony muszą pozostać na ekranie laboratorium. Pomiar jest niezależny od listy znajomych i nie jest jeszcze używany przez wizjer AR. Na starszych lub nieobsługiwanych urządzeniach pozostaje wizjer GPS.
 - Ręczne kody i sesja logowania pozostają w pamięci procesu. Ręczny tryb nie wymaga serwera. Opcjonalny, skonfigurowany tryb na żywo używa Supabase; szczegóły i ograniczenia poniżej.
 
 Dostępność i dokładność GPS, kompasu i kamery zależą od telefonu oraz otoczenia. W budynkach, przy zakłóceniach magnetycznych, po zmianie pozycji znajomego lub po zasłonięciu nieba wyniki mogą być znacznie błędne. Nie używaj prototypu do bezpieczeństwa lub nawigacji w ruchu.
@@ -23,6 +24,17 @@ Wymagane: JDK 17, Android SDK z platformą 36, dostęp do repozytoriów Google i
 ```
 
 Plik powstanie pod `app/build/outputs/apk/debug/app-debug.apk`. To **debug APK**, do testów, nie wersja sklepowa. Na GitHub Actions workflow `Android debug APK` również buduje i udostępnia go jako artefakt `RejTag-debug-apk` po uruchomieniu workflow na wypchniętym branchu.
+
+## Eksperymentalne laboratorium UWB
+
+Potrzebne są dwa telefony z Androidem 14+, UWB oraz dostępną usługą AndroidX UWB, obsługujące bezpieczną konfigurację Provisioned STS. Włącz lokalizację i UWB, gdy urządzenie tego wymaga, i zaakceptuj uprawnienie UWB. Test nie wymaga konta ani serwera; obie osoby muszą świadomie w nim uczestniczyć.
+
+1. Otwórz laboratorium na obu telefonach i nie przełączaj aplikacji aż do końca testu. Na pierwszym wybierz **telefon B**, a na drugim **telefon A**.
+2. Na B wybierz „Pokaż mój kod” i przepisz go w „Wpisz kod drugiego telefonu” na A. Na A wyświetl wygenerowany kod i przepisz go na B.
+3. Naciśnij „Start pomiaru” na obu urządzeniach możliwie szybko. Jeśli telefon zwraca odległość lub kąt, pojawią się na ekranie. Przy błędzie, wygaśnięciu sesji lub braku sygnału zacznij od nowych kodów albo użyj GPS.
+4. Przycisk „Zatrzymaj”, opuszczenie ekranu albo przejście aplikacji do tła kończy pomiar. Kod sesji zawiera klucz: przepisuj go osobiście i nie udostępniaj publicznie. Kod nie jest zapisywany ani wysyłany na serwer RejTag.
+
+To dopiero proof of concept, **niesprawdzony na fizycznych urządzeniach**. UWB zależy od sprzętu, usług systemowych, geometrii, zakłóceń i przeszkód; może nie działać lub podawać błędne wartości. Wykrycie UWB nie oznacza gwarancji zgodności dwóch telefonów. Ten eksperyment nie pokazuje pozycji 1:1 w AR ani ludzi za ścianą. Android 8–13 zachowuje dotychczasowy wizjer, ale nie uruchamia laboratorium; starsze urządzenia nie zostały jeszcze przetestowane po dodaniu biblioteki.
 
 ## Eksperymentalny tryb na żywo
 
@@ -65,5 +77,5 @@ Testują m.in. zaproszenia, weryfikację i unieważnianie sesji, brak dostępu o
 
 1. Zmierzyć zachowanie GPS, kompasu i kamery na konkretnych modelach w terenie i wewnątrz budynków.
 2. Dopracować i przetestować eksperymentalne udostępnianie między kontami: jawny status aktywności, szybkie wstrzymanie i wycofanie zgody, blokowanie, limity retencji oraz bezpieczeństwo niepełnoletnich. Działanie w tle wymaga osobnego projektu zgodnego z ograniczeniami Androida; obecny prototyp tego nie robi.
-3. Zweryfikować na rzeczywistych urządzeniach Android UWB: dostępność sprzętu, odległość, ewentualny kierunek i zachowanie przy przeszkodach. Zaprojektować wymianę parametrów sesji oraz łączenie pomiarów z ARCore / IMU. UWB i ARCore nie są jeszcze zaimplementowane. Bluetooth i Wi-Fi mogą wspomagać komunikację i pomiar, ale RSSI samo w sobie nie zapewnia położenia 3D.
+3. Zweryfikować laboratorium UWB na rzeczywistych urządzeniach: dostępność sprzętu, odległość, ewentualny kierunek i zachowanie przy przeszkodach. Zaprojektować bezpieczną, wygodniejszą wymianę parametrów oraz łączenie pomiarów z ARCore / IMU. Automatyczne parowanie i ARCore nie są jeszcze zaimplementowane. Bluetooth i Wi-Fi mogą wspomagać komunikację i pomiar, ale RSSI samo w sobie nie zapewnia położenia 3D.
 4. Oceniać jakość danych i pokazywać niepewność; nie przedstawiać przybliżenia jako precyzyjnego położenia. Badania wykrywania osób za przeszkodami wymagają innego sprzętu i osobnej oceny bezpieczeństwa oraz zgody uczestników.

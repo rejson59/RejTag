@@ -37,15 +37,11 @@ import io.reactivex.rxjava3.schedulers.Schedulers;
 import java.security.SecureRandom;
 import java.util.Collections;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /** Manual, foreground-only UWB ranging experiment; no identifiers or keys go to the server. */
 public final class UwbLabActivity extends Activity {
     private static final int INK = Color.rgb(22,31,26), PAPER = Color.rgb(245,245,240), MUTED = Color.rgb(102,113,103);
     private static final int REQUEST_UWB = 41;
-    private static final Pattern PEER = Pattern.compile("RTUWB1:P:([0-9A-Fa-f]{4})");
-    private static final Pattern CONFIG = Pattern.compile("RTUWB1:C:([0-9A-Fa-f]{4}):([0-9]{1,2}):([0-9]{1,2}):([0-9]{1,10}):([0-9A-Fa-f]{32})");
     private enum Role { CONTROLLER, CONTROLEE }
     private UwbManager manager;
     private UwbClientSessionScope scope;
@@ -153,7 +149,7 @@ public final class UwbLabActivity extends Activity {
         byte[] address = result.getLocalAddress().getAddress();
         if (address == null || address.length != 2) { resetExperiment("Nieobsługiwany format adresu UWB. Użyj wizjera GPS."); return; }
         scope = result;
-        localCode = "RTUWB1:P:" + hex(address);
+        localCode = UwbProtocol.peerCode(address);
         status.setText(role == Role.CONTROLEE ? "Telefon B gotowy. Pokaż kod i przepisz go na A." : "Telefon A gotowy. Wpisz kod z telefonu B.");
         updateButtons();
         } catch (RuntimeException e) { resetExperiment("Nie udało się odczytać możliwości UWB. Użyj wizjera GPS."); }
@@ -177,23 +173,19 @@ public final class UwbLabActivity extends Activity {
         if (scope == null || started) return;
         try {
             if (role == Role.CONTROLLER) {
-                Matcher match = PEER.matcher(raw); if (!match.matches()) throw new IllegalArgumentException();
-                byte[] peer = unhex(match.group(1));
+                byte[] peer = UwbProtocol.parsePeer(raw);
                 if (java.util.Arrays.equals(peer, scope.getLocalAddress().getAddress())) throw new IllegalArgumentException();
                 UwbComplexChannel channel = ((UwbControllerSessionScope) scope).getUwbComplexChannel();
                 if (channel == null) throw new IllegalArgumentException();
                 SecureRandom random = new SecureRandom(); byte[] key = new byte[16]; random.nextBytes(key);
                 int sid = random.nextInt(Integer.MAX_VALUE - 1) + 1;
                 parameters = params(peer, channel, sid, key);
-                controllerCode = String.format(Locale.US, "RTUWB1:C:%s:%d:%d:%d:%s", hex(scope.getLocalAddress().getAddress()), channel.getChannel(), channel.getPreambleIndex(), sid, hex(key));
+                controllerCode = UwbProtocol.configCode(scope.getLocalAddress().getAddress(), channel.getChannel(), channel.getPreambleIndex(), sid, key);
                 code.setText(""); status.setText("Kod B przyjęty. Pokaż kod A na drugim telefonie, potem uruchom pomiar na obu.");
             } else {
-                Matcher match = CONFIG.matcher(raw); if (!match.matches()) throw new IllegalArgumentException();
-                byte[] peer = unhex(match.group(1)), key = unhex(match.group(5));
-                int channel = Integer.parseInt(match.group(2)), preamble = Integer.parseInt(match.group(3));
-                long sid = Long.parseLong(match.group(4));
-                if (java.util.Arrays.equals(peer, scope.getLocalAddress().getAddress()) || channel < 1 || channel > 15 || preamble < 1 || preamble > 32 || sid < 1 || sid > Integer.MAX_VALUE || !scope.getRangingCapabilities().getSupportedChannels().contains(channel)) throw new IllegalArgumentException();
-                parameters = params(peer, new UwbComplexChannel(channel, preamble), (int) sid, key);
+                UwbProtocol.Config config = UwbProtocol.parseConfig(raw);
+                if (java.util.Arrays.equals(config.peer, scope.getLocalAddress().getAddress()) || !scope.getRangingCapabilities().getSupportedChannels().contains(config.channel)) throw new IllegalArgumentException();
+                parameters = params(config.peer, new UwbComplexChannel(config.channel, config.preamble), config.sessionId, config.key);
                 code.setText(""); status.setText("Kod A przyjęty. Uruchom pomiar na obu telefonach.");
             }
             updateButtons();
@@ -203,8 +195,6 @@ public final class UwbLabActivity extends Activity {
         return new RangingParameters(RangingParameters.CONFIG_PROVISIONED_UNICAST_DS_TWR, sid, 0, key, null, channel,
             Collections.singletonList(UwbDevice.createForAddress(peer)), RangingParameters.RANGING_UPDATE_RATE_AUTOMATIC);
     }
-    private static String hex(byte[] bytes) { StringBuilder b = new StringBuilder(); for (byte v : bytes) b.append(String.format(Locale.US, "%02X", v & 255)); return b.toString(); }
-    private static byte[] unhex(String value) { byte[] out = new byte[value.length()/2]; for (int i=0; i<out.length; i++) out[i]=(byte) Integer.parseInt(value.substring(i*2,i*2+2),16); return out; }
     private void startRanging() {
         if (scope == null || parameters == null || started) return;
         final int current = epoch; started = true; lastMeasurement = 0; sessionStarted = SystemClock.elapsedRealtime();
